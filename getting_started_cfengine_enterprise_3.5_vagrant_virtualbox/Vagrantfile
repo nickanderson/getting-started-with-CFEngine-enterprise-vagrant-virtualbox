@@ -1,0 +1,211 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  # All Vagrant configuration is done here. The most common configuration
+  # options are documented and commented below. For a complete reference,
+  # please see the online documentation at vagrantup.com.
+
+  # Every Vagrant virtual environment requires a box to build off of.
+  config.vm.box = "centos-6.x-x86_64_cfengine_getting_started-201305291019"
+
+
+
+  # The url from where the 'config.vm.box' box will be fetched if it
+  # doesn't already exist on the user's system.
+  config.vm.box_url = "http://cfengine.com/tl_files/cfengine/share/vagrant_baseboxes/centos-6.x-x86_64_cfengine_getting_started-201305291019.box"
+
+  # 
+  # Dynamic Node Configuration
+  # 
+  hosts = 1
+
+  # Specify the first three octects of the private host_only network for inter
+  # vm communication
+  first_three_network_octets = "192.168.33"
+  
+  # We reserve the policyserver ip for .2
+  cfengine_policyserver_ip = "#{first_three_network_octets}.2"
+
+  # All the hosts get port 80 forwarded to this port + host_number
+  # (just like the IP)
+  prefix_80_fwd = 900
+
+  #
+  # Shell Providers
+  #
+  
+  
+ 
+  # Install CFEngine GPG Key
+  # The CFEngine provider requires an http url and I don't want to rely on network access
+  # config.vm.provision :shell, :path => "resources/shell_provisioners/install_cfengine_gpg_key.sh"
+
+  # Setup some training environment defaults
+  # config.vm.provision :shell, :path => "resources/shell_provisioners/init_training_el5.sh"
+
+  # Bootstrap the local repository for training environment (requires network access)
+  # config.vm.provision :shell, :path => "resources/shell_provisioners/seed_local_repos.sh"
+  
+  #
+  # CFEngine Provisioner Settings 
+  #     (applies to all vms)
+  #config.vm.provision :cfengine do |cfengine|
+  #  cfengine.yum_repo_url = "file:///vagrant/resources/yumrepos/cfengine"
+  #  cfengine.policy_server_address = "#{cfengine_policyserver_ip}"
+  #end
+
+  
+  # Begin Hub Configuration
+  #
+
+  policyserver_80_fwd = Integer("#{prefix_80_fwd}#{0+2}")
+
+  config.vm.define :policyserver do |policyserver|
+    policyserver.vm.hostname = "policyserver"
+    #policyserver.vm.network :public_network, :auto_config => true
+    policyserver.vm.network :private_network, ip: "#{cfengine_policyserver_ip}"
+    policyserver.vm.network :forwarded_port, guest: 80, host: policyserver_80_fwd
+    # Use a synced folder so that we can edit from outside of the environment
+    # A typical workflow has masterfiles pulled from version control
+    #policyserver.vm.synced_folder "resources/overlay_var_cfengine/masterfiles/", "/var/cfengine/masterfiles"
+    #policyserver.vm.provision :shell, :path => "resources/shell_provisioners/01_prime_local_cfengine_repo_el6.sh"
+    policyserver.vm.provision :shell, :path => "resources/shell_provisioners/02_configure_local_cfengine_enterprise_yum_sources_el6.sh"
+    policyserver.vm.provision :shell, :path => "resources/shell_provisioners/03_install_cfengine_enterprise_policyserver.sh"
+    #policyserver.vm.provision :shell, :path => "resources/shell_provisioners/04_install_cfengine_enterprise_expansion.sh"
+    policyserver.vm.provision :shell, :path => "resources/shell_provisioners/05_bootstrap_cfengine.sh", :args => "#{cfengine_policyserver_ip}"
+    #policyserver.vm.provision :shell, :path => "resources/shell_provisioners/06_nudge_mission_portal.sh"
+    policyserver.vm.provision :shell, :path => "resources/shell_provisioners/07_install_lessons.sh"
+    policyserver.vm.provision :shell, :path => "resources/shell_provisioners/08_instructions.sh", :args => "localhost #{policyserver_80_fwd}"
+    
+  end
+
+  #
+  # Begin Dynamic Node Specification
+  #
+  
+  # Calculate Node IP 
+  # .1 is reserved for internal router
+  # .2 is reserved for the policyserver
+  # .3 begins host ips
+  host_ip_offset = 2 
+  maxhosts = 252
+  (1..hosts).each do |host_number|
+    # Set padding for host name to make it look pretty
+    host_name = "host" + host_number.to_s.rjust(3, '0')
+    # Calculate ip address for host
+    host_ip = "#{first_three_network_octets}.#{host_number+host_ip_offset}"
+    # Calculate host port to forward to port 80
+    host_80_fwd = Integer("#{prefix_80_fwd}#{host_number+host_ip_offset}")
+
+    config.vm.define host_name.to_sym do |host|
+      host.vm.hostname = "#{host_name}"
+      host.vm.network :private_network, ip: "#{host_ip}"
+      host.vm.network :forwarded_port, guest: 80, host: host_80_fwd
+      host.vm.provision :shell, :path => "resources/shell_provisioners/02_configure_local_cfengine_enterprise_yum_sources_el6.sh"
+      host.vm.provision :shell, :path => "resources/shell_provisioners/04_install_cfengine_enterprise_agent.sh"
+      host.vm.provision :shell, :path => "resources/shell_provisioners/05_bootstrap_cfengine.sh", :args => "#{cfengine_policyserver_ip}"
+      host.vm.provision :shell, :path => "resources/shell_provisioners/08_instructions.sh", :args => "localhost #{policyserver_80_fwd}"
+    end
+  end
+
+  # Create a forwarded port mapping which allows access to a specific port
+  # within the machine from a port on the host machine. In the example below,
+  # accessing "localhost:8080" will access port 80 on the guest machine.
+  # config.vm.network :forwarded_port, guest: 80, host: 8080
+
+  # Create a private network, which allows host-only access to the machine
+  # using a specific IP.
+  # config.vm.network :private_network, ip: "192.168.33.10"
+
+  # Create a public network, which generally matched to bridged network.
+  # Bridged networks make the machine appear as another physical device on
+  # your network.
+  # config.vm.network :public_network
+
+  # Share an additional folder to the guest VM. The first argument is
+  # the path on the host to the actual folder. The second argument is
+  # the path on the guest to mount the folder. And the optional third
+  # argument is a set of non-required options.
+  # config.vm.synced_folder "../data", "/vagrant_data"
+
+  # Provider-specific configuration so you can fine-tune various
+  # backing providers for Vagrant. These expose provider-specific options.
+  # Example for VirtualBox:
+  #
+  # config.vm.provider :virtualbox do |vb|
+  #   # Don't boot with headless mode
+  #   vb.gui = true
+  #
+  #   # Use VBoxManage to customize the VM. For example to change memory:
+  #   vb.customize ["modifyvm", :id, "--memory", "1024"]
+  # end
+  #
+  # View the documentation for the provider you're using for more
+  # information on available options.
+
+  # Enable provisioning with Puppet stand alone.  Puppet manifests
+  # are contained in a directory path relative to this Vagrantfile.
+  # You will need to create the manifests directory and a manifest in
+  # the file centos-5.x-i386_nickanderson_201304271927.pp in the manifests_path directory.
+  #
+  # An example Puppet manifest to provision the message of the day:
+  #
+  # # group { "puppet":
+  # #   ensure => "present",
+  # # }
+  # #
+  # # File { owner => 0, group => 0, mode => 0644 }
+  # #
+  # # file { '/etc/motd':
+  # #   content => "Welcome to your Vagrant-built virtual machine!
+  # #               Managed by Puppet.\n"
+  # # }
+  #
+  # config.vm.provision :puppet do |puppet|
+  #   puppet.manifests_path = "manifests"
+  #   puppet.manifest_file  = "init.pp"
+  # end
+
+  # Enable provisioning with chef solo, specifying a cookbooks path, roles
+  # path, and data_bags path (all relative to this Vagrantfile), and adding
+  # some recipes and/or roles.
+  #
+  # config.vm.provision :chef_solo do |chef|
+  #   chef.cookbooks_path = "../my-recipes/cookbooks"
+  #   chef.roles_path = "../my-recipes/roles"
+  #   chef.data_bags_path = "../my-recipes/data_bags"
+  #   chef.add_recipe "mysql"
+  #   chef.add_role "web"
+  #
+  #   # You may also specify custom JSON attributes:
+  #   chef.json = { :mysql_password => "foo" }
+  # end
+
+  # Enable provisioning with chef server, specifying the chef server URL,
+  # and the path to the validation key (relative to this Vagrantfile).
+  #
+  # The Opscode Platform uses HTTPS. Substitute your organization for
+  # ORGNAME in the URL and validation key.
+  #
+  # If you have your own Chef Server, use the appropriate URL, which may be
+  # HTTP instead of HTTPS depending on your configuration. Also change the
+  # validation key to validation.pem.
+  #
+  # config.vm.provision :chef_client do |chef|
+  #   chef.chef_server_url = "https://api.opscode.com/organizations/ORGNAME"
+  #   chef.validation_key_path = "ORGNAME-validator.pem"
+  # end
+  #
+  # If you're using the Opscode platform, your validator client is
+  # ORGNAME-validator, replacing ORGNAME with your organization name.
+  #
+  # If you have your own Chef Server, the default validation client name is
+  # chef-validator, unless you changed the configuration.
+  #
+  #   chef.validation_client_name = "ORGNAME-validator"
+end
+
+
+
+
