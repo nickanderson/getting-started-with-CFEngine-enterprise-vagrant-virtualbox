@@ -1,0 +1,50 @@
+# Example how to manipulate contents of /etc/motd using CFEngine file editing
+# capabilities. Feel free to change contents in "bundle edit_line ensure_motd_contents"
+
+bundle agent motd_config
+{
+  vars:
+
+      "motd"
+        string  => "/etc/motd",
+        handle  => "motd_config_vars_motd",
+        comment => "Default location for message of the day";
+
+#
+
+  files:
+
+      "$(motd)"
+        handle        => "motd_config_files_motd",
+        create        => "true",
+        edit_defaults => empty,
+        edit_line     => ensure_motd_contents,
+        classes       => if_repaired("motd_repaired"),
+        comment       => "ensure $(this.promiser) in a perfect condition";
+
+}
+
+################################################################################
+
+bundle edit_line ensure_motd_contents
+{
+  insert_lines:
+"
+This machine is managed by CFEngine
+
+   @@@    @   Agent last successfully executed: $(sys.date)
+   @@@   @
+        @
+ @ @@@ @
+ @ @@@
+ @ @@@
+ @
+   @@@
+   @ @
+   @ @
+   @ @"
+  comment => "insert contents of message of the day",
+  handle  => "$(this.bundle)_insert_lines";
+}
+
+

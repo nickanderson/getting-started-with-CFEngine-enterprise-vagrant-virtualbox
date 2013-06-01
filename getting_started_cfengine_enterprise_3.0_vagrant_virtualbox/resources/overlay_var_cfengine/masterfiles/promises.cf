@@ -1,0 +1,99 @@
+###############################################################################
+#
+#   promises.cf - Basic Policy for Enterprise version
+#
+###############################################################################
+
+body common control
+
+{
+
+ bundlesequence => {
+
+                  # Common bundle first (Best Practice)
+                    "def",
+                    "cfe_internal_hub_vars",
+                  # Design Center
+                    "cfsketch_run",
+
+                  # Agent bundle
+                    "cfe_internal_management",   # See cfe_internal/CFE_cfengine.cf
+                    "service_catalogue",
+                    "example_use_goals",         # See cfe_internal/example_use_goals.cf
+
+
+                  # "sshd_config",
+                  # "motd_config",
+                   };
+
+         inputs => {
+
+                  # File definition for global variables and classes
+                    "def.cf",
+
+                  # Design Center
+                  # MARKER FOR CF-SKETCH INPUT INSERTION
+                    "cf-sketch-runfile.cf",
+
+                  # CFEngine internal processes for Mission Portal mostly
+                    "cfe_internal/CFE_cfengine.cf",
+                    "cfe_internal/CFE_hub_specific.cf",
+                    "cfe_internal/CFE_knowledge.cf",
+                    "cfe_internal/example_use_goals.cf",
+
+                  # Control body for all CFEngine robot agents
+                    "controls/cf_agent.cf",
+                    "controls/cf_execd.cf",
+                    "controls/cf_hub.cf",
+                    "controls/cf_monitord.cf",
+                    "controls/cf_report.cf",
+                    "controls/cf_runagent.cf",
+                    "controls/cf_serverd.cf",
+
+                  # COPBL and custom body/bundle library
+                    "libraries/cfengine_stdlib.cf",
+
+                  # Add failsafe to build Knowledge Map relationship
+                    "failsafe/update_bins.cf",
+                    "failsafe/update_policy.cf",
+
+                  # List of services here
+                    "services/file_change.cf",
+
+
+                  # Lessons
+                    "lessons/01/motd_config.cf",
+                    "lessons/02/sshd_config.cf",
+
+                   };
+
+   version => "Promises.cf 3.0.0";
+
+   host_licenses_paid => "25";
+
+#   goal_categories => { "goals", "targets", "milestones" };
+#   goal_patterns   => { "goal_.*", "target.*","milestone.*" };
+
+}
+
+###############################################################################
+#
+# bundle agent service_catalogue
+#  - general purposes of usage
+#
+###############################################################################
+
+bundle agent service_catalogue
+
+{							 
+
+ methods:
+
+  any::
+
+   "security" -> { goal_infosec, goal_compliance }
+                  comment => "Basic change management",
+                   handle => "service_catalogue_change_management",
+                usebundle => change_management;
+
+}
