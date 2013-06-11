@@ -1,6 +1,6 @@
 #!/bin/bash
 masterfiles_git="/opt/cfengine/masterfiles.git"
-base_masterfiles="/var/cfengine/share/Novabase"
+base_masterfiles="/var/cfengine/share/NovaBase"
 overlay_masterfiles="/vagrant/resources/overlay_var_cfengine/masterfiles"
 tmp_masterfiles="/tmp/masterfiles"
 
