@@ -1,6 +1,7 @@
 #!/bin/bash
 masterfiles_git="/opt/cfengine/masterfiles.git"
 base_masterfiles="/var/cfengine/share/NovaBase"
+masterfiles="/var/cfengine/masterfiles"
 overlay_masterfiles="/vagrant/resources/overlay_var_cfengine/masterfiles"
 tmp_masterfiles="/tmp/masterfiles"
 
@@ -35,5 +36,14 @@ if [[ ! -d $masterfiles_git ]]; then
 
     # Since we initilized a new repository we have to specity the branch to
     # create it on the origin
-    git push origin master && rm -rf $tmp_masterfiles
+    git push origin master
+
+    echo Converting $masterfiles to git clone of $masterfiles_git
+    mv $tmp_masterfiles/.git $masterfiles/
+    cd $masterfiles
+    git reset --hard HEAD
+    echo Done converting 
+
+    echo Cleaning up temporary masterfiles $tmp_masterfiles
+    rm -rf $tmp_masterfiles
 fi
