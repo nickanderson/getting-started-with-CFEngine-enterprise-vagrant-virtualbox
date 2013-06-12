@@ -1,0 +1,69 @@
+###############################################################################
+#
+# update.cf - This file is used for automated policy recovery
+#
+###############################################################################
+
+# The common control body refers to those promises that 
+# are hard-coded into all the components of cfengine, 
+# and therefore affect the behaviour of all the components.
+
+body common control
+{
+### List of promise bundles to verify in order 
+
+ bundlesequence => { 
+                    "cfe_internal_update_bins", 
+                    "update_from_repository",
+                    "cfe_internal_update_policy",
+                    "cfe_internal_update_processes", 
+                   };
+
+### List of filenames to parse for promises.
+
+ inputs => { 
+            "update/update_bins.cf", 
+            "update/update_policy.cf", 
+            "update/update_from_repository.cf", 
+            "update/update_processes.cf",
+           };
+           
+ version => "Update.cf 3.0.3";
+
+}
+
+###############################################################################
+
+body agent control
+
+{
+### Global default for time that must elapse before promise will be rechecked.
+
+ # This should normally be set to seom interval like 5 mins
+ # We set it to one initially to avoid confusion - please see manual
+
+ ifelapsed => "1";
+
+### Do not send IP/name during server connection if address resolution is broken.
+
+ skipidentify => "true";
+
+### Switch on tracking of promise valuation
+
+ track_value => "true";
+
+### Unset LD_LIBRARY_PATH for all distribuitions ###
+
+ hpux::
+  environment => { "SHLIB_PATH=" };
+
+ aix::
+  environment => { "LIBPATH=" };
+
+ !(windows|hpux|aix)::
+  environment => { "LD_LIBRARY_PATH=" };
+
+}
+
+###############################################################################
+

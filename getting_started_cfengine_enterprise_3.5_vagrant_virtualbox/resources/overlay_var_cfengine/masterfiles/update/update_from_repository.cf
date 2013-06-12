@@ -1,0 +1,19 @@
+bundle agent update_from_repository
+{
+  commands:
+
+    am_policy_hub::
+
+      "/usr/bin/git fetch --all"
+        contain => u_no_output;
+
+      "/usr/bin/git reset --hard origin/master"   # change to your branch
+        contain => u_no_output;
+}
+
+body contain u_no_output
+{
+  no_output => "true";
+  chdir => "/var/cfengine/masterfiles";
+}
+
