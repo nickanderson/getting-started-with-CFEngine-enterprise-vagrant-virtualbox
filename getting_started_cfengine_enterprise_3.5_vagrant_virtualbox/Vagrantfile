@@ -66,6 +66,10 @@ Vagrant.configure("2") do |config|
     #policyserver.vm.network :public_network, :auto_config => true
     policyserver.vm.network :private_network, ip: "#{cfengine_policyserver_ip}"
     policyserver.vm.network :forwarded_port, guest: 80, host: policyserver_80_fwd
+
+    config.vm.provider "virtualbox" do |v|
+        v.customize ["modifyvm", :id, "--memory", "1024"]
+    end
     # Use a synced folder so that we can edit from outside of the environment
     # A typical workflow has masterfiles pulled from version control
     #policyserver.vm.synced_folder "resources/overlay_var_cfengine/masterfiles/", "/var/cfengine/masterfiles"
