@@ -75,6 +75,7 @@ Vagrant.configure("2") do |config|
     #policyserver.vm.synced_folder "resources/overlay_var_cfengine/masterfiles/", "/var/cfengine/masterfiles"
     #policyserver.vm.provision :shell, :path => "resources/shell_provisioners/01_prime_local_cfengine_repo_el6.sh"
     policyserver.vm.provision :shell, :path => "resources/shell_provisioners/02_configure_local_cfengine_enterprise_yum_sources_el6.sh"
+    policyserver.vm.provision :shell, :path => "resources/shell_provisioners/configure_local_package_cache_repo_el.sh"
     policyserver.vm.provision :shell, :path => "resources/shell_provisioners/03_install_cfengine_enterprise_policyserver.sh"
     #policyserver.vm.provision :shell, :path => "resources/shell_provisioners/04_install_cfengine_enterprise_expansion.sh"
     policyserver.vm.provision :shell, :path => "resources/shell_provisioners/05_bootstrap_cfengine.sh", :args => "#{cfengine_policyserver_ip}"
@@ -110,6 +111,7 @@ Vagrant.configure("2") do |config|
       host.vm.network :private_network, ip: "#{host_ip}"
       host.vm.network :forwarded_port, guest: 80, host: host_80_fwd
       host.vm.provision :shell, :path => "resources/shell_provisioners/02_configure_local_cfengine_enterprise_yum_sources_el6.sh"
+      host.vm.provision :shell, :path => "resources/shell_provisioners/configure_local_package_cache_repo_el.sh"
       host.vm.provision :shell, :path => "resources/shell_provisioners/04_install_cfengine_enterprise_agent.sh"
       host.vm.provision :shell, :path => "resources/shell_provisioners/05_bootstrap_cfengine.sh", :args => "#{cfengine_policyserver_ip}"
       host.vm.provision :shell, :path => "resources/shell_provisioners/08_instructions.sh", :args => "localhost #{policyserver_80_fwd}"
