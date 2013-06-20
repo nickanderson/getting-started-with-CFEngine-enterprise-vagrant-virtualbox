@@ -1,9 +1,10 @@
 #!/bin/bash
-masterfiles_git="/opt/cfengine/masterfiles.git"
-base_masterfiles="/var/cfengine/share/NovaBase"
-masterfiles="/var/cfengine/masterfiles"
-overlay_masterfiles="/vagrant/resources/overlay_var_cfengine/masterfiles"
-tmp_masterfiles="/tmp/masterfiles"
+source /vagrant/resources/shell_provisioners/common_vars
+#masterfiles_git="/opt/cfengine/masterfiles.git"
+#base_masterfiles="/var/cfengine/share/NovaBase"
+#masterfiles="/var/cfengine/masterfiles"
+#overlay_masterfiles="/vagrant/resources/overlay_var_cfengine/masterfiles"
+#tmp_masterfiles="/tmp/masterfiles"
 
 # only do this if a git repo doesnt exist already so that subsequent reboots
 # dont error or wipe out configs
@@ -47,3 +48,5 @@ if [[ ! -d $masterfiles_git ]]; then
     echo Cleaning up temporary masterfiles $tmp_masterfiles
     rm -rf $tmp_masterfiles
 fi
+
+chown -R $git_user:$git_user $masterfiles_git

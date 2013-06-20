@@ -84,6 +84,7 @@ Vagrant.configure("2") do |config|
     policyserver.vm.provision :shell, :path => "resources/shell_provisioners/create_and_install_sshkey.sh"
     policyserver.vm.provision :shell, :path => "resources/shell_provisioners/initalize_masterfiles_repo.sh"
     policyserver.vm.provision :shell, :path => "resources/shell_provisioners/install_git.sh"
+    policyserver.vm.provision :shell, :path => "resources/shell_provisioners/setup_git_user_env.sh"
     policyserver.vm.provision :shell, :path => "resources/shell_provisioners/08_instructions.sh", :args => "localhost #{policyserver_80_fwd}"
     
   end
