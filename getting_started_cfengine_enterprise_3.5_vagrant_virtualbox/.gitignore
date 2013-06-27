@@ -1,3 +1,4 @@
 .vagrant*
+release
 policyserver.id_rsa
 policyserver.id_rsa.pub
