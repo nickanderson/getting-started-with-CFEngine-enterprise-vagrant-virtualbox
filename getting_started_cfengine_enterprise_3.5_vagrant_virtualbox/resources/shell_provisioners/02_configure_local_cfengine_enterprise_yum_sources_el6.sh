@@ -1,5 +1,5 @@
 #!/bin/bash
-REPO="/vagrant/resources/repositories/cfengine_enterprise/el6"
+REPO="/vagrant/resources/repositories/cfengine_enterprise/EL6"
 
 cat >/etc/yum.repos.d/cfengine_enterprise.repo<<EOF
 [cfengine_enterprise]

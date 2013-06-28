@@ -2,7 +2,7 @@
 PACKAGE="cfengine-nova-hub"
 PACKAGE_VER="3.5.0-1"
 PACKAGE_ARCH="x86_64"
-PATH="/vagrant/resources/repositories/cfengine_enterprise/el6/x86_64"
+PATH="/vagrant/resources/repositories/cfengine_enterprise/EL6/x86_64"
 
 echo Checking $PACKAGE
 #yum -y install cfengine-nova-hub
