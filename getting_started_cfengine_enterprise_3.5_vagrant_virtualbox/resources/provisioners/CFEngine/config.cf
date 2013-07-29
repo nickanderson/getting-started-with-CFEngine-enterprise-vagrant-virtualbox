@@ -1,0 +1,427 @@
+body common control
+{
+  bundlesequence => {
+                      "settings",
+                      "main",
+                      #"desired_packages",
+                      #"ensure_git_user",
+                      #"ensure_ssh_key_config",
+                      # "masterfiles_gitified",
+                    };
+  inputs => { "/var/cfengine/share/NovaBase/libraries/cfengine_stdlib.cf" };
+
+}
+
+bundle agent settings
+{
+  vars:
+      "git_user"
+        string => "git";
+
+      "git_user_home"
+        string => "/home/$(git_user)";
+
+      "git_user_home_overlay"
+        string => "/vagrant/resources/overlay_git_user_home";
+
+      "git_user_ssh_dir"
+        string => "$(git_user_home)/.ssh";
+
+      "git_user_authorized_keys"
+        string => "$(git_user_ssh_dir)/authorized_keys";
+
+      "git_user_password_hash"
+        string => "$1$MkR4OdY0$E9RYqJuHhD15Jv8IF6jFF.",
+        comment => "Git user password hash for password 'git'";
+ 
+      "yumrepo_localcache_state"
+        string => "enabled",
+        comment => "enable/disable local yum repository configuration";
+
+
+      "yumrepo_localcache_path"
+        string => "/vagrant/resources/repositories/localcache",
+        comment => "Full path to local repository";
+
+      "masterfiles"
+        string => "/var/cfengine/masterfiles";
+
+      "masterfiles_overlay"
+        string  => "/vagrant/resources/overlay_var_cfengine/masterfiles",
+        comment => "These files contain customizations that are supposed to sit
+                    on top fo the default masterfiles. They are recursively
+                    copied over the top of $(masterfiles) after masterfiles is
+                    populated with the defaults";
+
+      "masterfiles_tmp"
+        string  => "/tmp/masterfiles",
+        comment => "We need a temporary location where we can do initial
+                    construction of the masterfiles repository.";
+
+      "masterfiles_base"
+        string  => "/var/cfengine/share/NovaBase",
+        comment => "Default polciy";
+
+      "masterfiles_bare_git"
+        string  => "$(git_user_home)/masterfiles.git",
+        comment => "We need a central git repository for a policy writer to
+                    clone, modify and push changes to and where the policy
+                    server can source its masterfiles from.";
+
+      "mission_portal_priv_ssh_key"
+        string => "/vagrant/policyserver.id_rsa";
+
+      "mission_portal_priv_ssh_key"
+        string  => "/vagrant/policyserver.id_rsa",
+        comment => "This ssh key is neeed for mission portal authentication to
+                    the git repository";
+
+        "desired_packages"
+          slist => { "vim-enhanced", "git", "emacs-nox" };
+
+
+}
+
+bundle agent main
+{
+
+  methods:
+      # All clients will use this
+      "Local Yum Repository"
+        usebundle => config_yum_repo_localcache("$(settings.yumrepo_localcache_state)",
+                                                "$(settings.yumrepo_localcache_path)");
+
+    am_policy_hub::
+
+      "Packages"
+        usebundle => desired_packages,
+        comment => "A few packages are needed on the policy server to provide a
+                    nice policy editing environment.";
+
+      
+      "Git"
+        usebundle => configure_git_server,
+        comment => "For the Design Center GUI to work
+                    $(sys.workdir)/masterfiles must track a git repository";
+
+}
+
+bundle agent configure_git_server
+# @brief: Configures local Git Server
+{
+
+  methods:
+      "Git User"
+        usebundle => ensure_git_user;
+
+      "SSH Key"
+        usebundle => ensure_ssh_key_config;
+
+      "Masterfiles Bare Repo"
+        usebundle => masterfiles_bare_repo("$(settings.masterfiles_bare_git)",
+                                           "$(settings.masterfiles_tmp)",
+                                           "$(settings.masterfiles_base)",
+                                           "$(settings.masterfiles_overlay)");
+
+}
+
+bundle agent masterfiles_bare_repo(repo_path, working_clone, seed, overlay)
+# @brief: Ensure that a bare git repository for masterfiles exists
+#
+# @repo_path path where masterfiles bare repository should be initalized
+# @working_clone temporary working space
+# @seed directory to seed masterfiles with ($(sys.workdir)/share/{Nova,Core}Base)
+# @overlay file tree to be laid on top of seeded masterfiles
+{
+
+  vars:
+      "script_initalize_masterfiles_repo" string => '
+#!/bin/bash
+masterfiles_git=$1
+base_masterfiles=$2
+overlay_masterfiles=$3
+tmp_masterfiles=$4
+if [[ -d $tmp_masterfiles ]]; then
+    /bin/rm -rf $tmp_masterfiles
+fi
+
+/usr/bin/git clone $masterfiles_git $tmp_masterfiles
+/bin/cp -Rv $base_masterfiles/* $tmp_masterfiles/
+/bin/cp -Rv $overlay_masterfiles/* $tmp_masterfiles/
+cd $tmp_masterfiles
+
+# We need to set some defaults or we get errors on the commit
+/usr/bin/git config user.email "root@policyserver"
+/usr/bin/git config user.name "Root"
+/usr/bin/git config push.default matching
+
+/usr/bin/git add .
+/usr/bin/git commit -m "Initalize masterfiles repository"
+
+# Since we initilized a new repository we have to specity the branch to
+# create it on the origin
+/usr/bin/git push origin master
+
+/bin/echo Converting /var/cfengine/masterfiles to git clone of $masterfiles_git
+/bin/mv $tmp_masterfiles/.git /var/cfengine/masterfiles/
+cd /var/cfengine/masterfiles
+/usr/bin/git reset --hard HEAD
+/bin/echo Done converting 
+
+/bin/echo Cleaning up temporary masterfiles $tmp_masterfiles
+rm -rf $tmp_masterfiles';
+
+  classes:
+      "masterfiles_bare_git_exists" expression => fileexists("$(settings.masterfiles_bare_git)/HEAD");
+
+  files:
+
+      "/tmp/script_initalize_masterfiles_repo"
+        create => "true",
+        perms => mog("700", "root", "root"),
+        edit_defaults => empty,
+        edit_line => append_if_no_line("$(script_initalize_masterfiles_repo)");
+
+      "$(settings.masterfiles_bare_git)/."
+        create => "true",
+        perms  => og("$(settings.git_user)", "$(settings.git_user)");
+
+  commands:
+    !masterfiles_bare_git_exists::
+      "/usr/bin/git"
+        args => "init --bare",
+        contain => setuidgid_dir("$(settings.git_user)", "$(settings.git_user)", "$(repo_path)"),
+        classes => classes_generic("masterfiles_bare_git");
+
+      masterfiles_bare_git_repaired::
+        "/tmp/script_initalize_masterfiles_repo"
+          args => "$(repo_path) $(seed) $(overlay) $(working_clone)",
+          contain => in_shell,
+          classes => classes_generic("masterfiles_repo");
+
+}
+
+bundle agent masterfiles_gitified
+{
+  classes:
+      "masterfiles_bare_git_exists" expression => fileexists("$(settings.masterfiles_bare_git)/HEAD");
+      "masterfiles_tmp_exists" expression => fileexists("$(settings.masterfiles_tmp)");
+
+  files:
+    masterfiles_tmp_repaired::
+      "$(settings.masterfiles_tmp)/."
+        handle => "populate_masterfiles_tmp_with_masterfiles_base",
+        depth_search => recurse("inf"),
+        copy_from => local_cp("$(settings.masterfiles_base)/.");
+
+      "$(settings.masterfiles_tmp)/."
+        handle => "overlay_default_masterfiles",
+        depth_search => recurse("inf"),
+        depends_on => { "populate_masterfiles_tmp_with_masterfiles_base" }, 
+        classes => classes_generic("overlay_default_masterfiles"),
+        copy_from => local_cp("$(settings.masterfiles_overlay)/.");
+
+    commands:
+    masterfiles_bare_git_repaired::
+      "/usr/bin/git"
+        args => "clone $(settings.masterfiles_bare_git) $(settings.masterfiles_tmp)",
+        classes => classes_generic("masterfiles_tmp"),
+        comment => "We need a place to stage and commit the files from the
+                    default policy and the custom overlay";
+
+    git_commit_initial::
+      #transform .git directory in tmp dir over to masterfiiles proper
+
+    overlay_default_masterfiles_repaired::
+      "/usr/bin/git"
+        handle => "git_config_user_email",
+        args => "config user.email '$(settings.git_user)@policyserver.local'",
+        contain => setuidgid_dir("$(settings.git_user)", "$(settings.git_user)", "$(settings.masterfiles_tmp)");
+        
+      "/usr/bin/git"
+        handle => "git_config_user_name",
+        args => "config user.name '$(settings.git_user)'",
+        contain => setuidgid_dir("$(settings.git_user)", "$(settings.git_user)", "$(settings.masterfiles_tmp)");
+      
+      "/usr/bin/git"
+        handle => "git_config_push_default_matching",
+        args => "config push.default matching",
+        contain => setuidgid_dir("$(settings.git_user)", "$(settings.git_user)", "$(settings.masterfiles_tmp)");
+
+      "/usr/bin/git"
+        handle => "git_add",
+        args => "add .",
+        contain => setuidgid_dir("$(settings.git_user)", "$(settings.git_user)", "$(settings.masterfiles_tmp)");
+
+      "/usr/bin/git"
+        handle => "git_commit_initial",
+        args => "commit -m 'initial commit'",
+        depends_on => { "git_add", "git_config_push_default_matching", "git_config_user_name", "git_config_user_email" },
+        contain => setuidgid_dir("$(settings.git_user)", "$(settings.git_user)", "$(settings.masterfiles_tmp)");
+    
+      "/usr/bin/git"
+        handle => "git_push",
+        args => "push origin master",
+        depends_on => { "git_commit_initial" },
+        contain => setuidgid_dir("$(settings.git_user)", "$(settings.git_user)", "$(settings.masterfiles_tmp)");
+
+      # When .git exists in masterfiles proper
+      #git reset hard head 
+      #remove tmp masterfiles if .git directory exists in masterfiles
+
+}
+
+body contain setuidgid_dir(uid, gid, dir)
+{
+  exec_owner => "$(uid)";
+  chdir => "$(dir)";
+  exec_group => "$(gid)";
+}
+
+bundle agent desired_packages
+{
+  packages:
+      "$(settings.desired_packages)"
+        package_method => yum_rpm_enable_only_repo("localcache"),
+        package_policy => "add";
+}
+
+bundle agent ensure_git_user
+{
+  classes:
+    "git_user_exists" expression => userexists("$(settings.git_user)");
+
+  commands:
+    !git_user_exists::
+      "/usr/sbin/useradd"
+        args    => "$(settings.git_user)",
+        handle  => "ensure_git_user_commands_useradd",
+        comment => "We need a non root user to host the repositoriy in order to
+                    be able to disable root ssh login";
+
+  files:
+      "/etc/shadow"
+        edit_line => set_user_field("$(settings.git_user)", "2", "$(settings.git_user_password_hash)"),
+        comment   => "Ensure the git user has a known password";
+      
+      "$(settings.git_user_home)/."
+        copy_from    => local_cp("$(settings.git_user_home_overlay)"),
+        depth_search => recurse("inf"),
+        perms        => og("$(settings.git_user)", "$(settings.git_user)"),
+        comment      => "Populate the git users home directory with things to make
+                        editing policy more pleasent";
+
+      "$(settings.git_user_home)"
+        perms        => mog("700", "$(settings.git_user)", "$(settings.git_user)"),
+        comment      => "We need to make sure the git user owns its own home directory";
+
+}
+
+bundle agent ensure_ssh_key_config
+{
+  vars:
+    mission_portal_pub_ssh_key_exists:: 
+      "mission_portal_pub_ssh_key"
+        string => readfile("$(settings.mission_portal_priv_ssh_key).pub", "1024");
+
+  classes:
+      "mission_portal_priv_ssh_key_exists"
+        expression => fileexists("$(settings.mission_portal_priv_ssh_key)"); 
+
+      "mission_portal_pub_ssh_key_exists"
+        expression => fileexists("$(settings.mission_portal_priv_ssh_key).pub"); 
+
+  commands:
+    !mission_portal_priv_ssh_key_exists::
+      "/usr/bin/ssh-keygen"
+        args    => "-C 'Mission Portal Git User' -N '' -f $(settings.mission_portal_priv_ssh_key)",
+        comment => "Mission portal does not support using keys with passphrases
+                    so we need to generate a passphraseless key to use with it.";
+
+  files:
+      "$(settings.git_user_ssh_dir)/."
+        create => "true",
+        perms  => mog("700", "git", "git");
+
+      "$(settings.git_user_authorized_keys)"
+        create    => "true",
+        perms     => mog("600", "$(settings.git_user)", "$(settings.git_user)"),
+        edit_line => append_if_no_lines("$(mission_portal_pub_ssh_key)");
+}
+
+bundle agent config_yum_repo_localcache(state, path)
+# @brief: Enable or disaable yum configuration for local repository
+#
+# @state valid values are "enabled" and "disabled"
+#
+# Note: unrecognized states 
+#
+# @path fully qualified local path to repository
+# 
+# Note: this will be used as part of basurl
+{
+  vars:
+    "localcache_def" string => "
+[localcache]
+name=Local Package Repository
+baseurl=file://$(path)
+enabled=1
+gpgcheck=0
+";
+
+  classes:
+    "yum_repo_localcache_enabled" expression => strcmp("enabled", "$(state)");
+    "yum_repo_localcache_disabled" expression => strcmp("disabled", "$(state)");
+
+  files:
+    yum_repo_localcache_enabled::
+      "/etc/yum.repos.d/localcache.repo"
+        create => "true",
+        edit_line => append_if_no_lines("$(localcache_def)"),
+        edit_defaults => empty,
+        comment => "Ensure the local yum repository is configured";
+
+    yum_repo_localcache_disabled::
+      "/etc/yum.repos.d/localcache.repo"
+        delete => tidy, 
+        comment => "Ensure the local yum repository is not configured";
+
+  reports:
+    !(yum_repo_localcache_enabled|yum_repo_localcache_disabled)::
+      "$(this.bundle) invalid @state defined as $(state)";
+
+}
+
+body package_method yum_rpm_enable_only_repo(repoid)
+
+# based on yum_rpm with addition to enable a repository for the install
+# Sometimes repositories are configured but disabled by default. For example
+# this pacakge_method could be used when installing a package that exists in
+# the EPEL, which normally you do not want to install packages from.
+{
+  package_changes => "bulk";
+  package_list_command => "/bin/rpm -qa --qf '%{name} %{version}-%{release} %{arch}\n'";
+  package_patch_list_command => "/usr/bin/yum --quiet check-update";
+
+  package_list_name_regex    => "^(\S+?)\s\S+?\s\S+$";
+  package_list_version_regex => "^\S+?\s(\S+?)\s\S+$";
+  package_list_arch_regex    => "^\S+?\s\S+?\s(\S+)$";
+
+  package_installed_regex => ".*";
+  package_name_convention => "$(name)";
+
+  # set it to "0" to avoid caching of list during upgrade
+  package_list_update_command => "/usr/bin/yum --quiet check-update";
+  package_list_update_ifelapsed => "240";
+
+  package_patch_installed_regex => "^\s.*";
+  package_patch_name_regex    => "([^.]+).*";
+  package_patch_version_regex => "[^\s]\s+([^\s]+).*";
+  package_patch_arch_regex    => "[^.]+\.([^\s]+).*";
+
+  package_add_command    => "/usr/bin/yum --disableplugin=fastestmirror --disablerepo=* --enablerepo=$(repoid) -y install";
+  package_update_command => "/usr/bin/yum --disableplugin=fastestmirror --disablerepo=* --enablerepo=$(repoid) -y update";
+  package_patch_command => "/usr/bin/yum -y update";
+  package_delete_command => "/bin/rpm -e --nodeps --allmatches";
+  package_verify_command => "/bin/rpm -V";
+}

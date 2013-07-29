@@ -6,13 +6,13 @@ Vagrant.configure("2") do |config|
   # options are documented and commented below. For a complete reference,
   # please see the online documentation at vagrantup.com.
 
+  package_version = "3.5.1-1"
+  policy_server_package_name = "cfengine-nova-hub"
+  agent_package_name = "cfengine-nova"
+
   # Every Vagrant virtual environment requires a box to build off of.
+  # Policy Server BaseBox
   config.vm.box = "centos-6.x-x86_64_cfengine_getting_started-201305291019"
-
-
-
-  # The url from where the 'config.vm.box' box will be fetched if it
-  # doesn't already exist on the user's system.
   config.vm.box_url = "http://cfengine.com/tl_files/cfengine/share/vagrant_baseboxes/centos-6.x-x86_64_cfengine_getting_started-201305291019.box"
 
   # 
@@ -31,31 +31,6 @@ Vagrant.configure("2") do |config|
   # (just like the IP)
   prefix_80_fwd = 900
 
-  #
-  # Shell Providers
-  #
-  
-  
- 
-  # Install CFEngine GPG Key
-  # The CFEngine provider requires an http url and I don't want to rely on network access
-  # config.vm.provision :shell, :path => "resources/shell_provisioners/install_cfengine_gpg_key.sh"
-
-  # Setup some training environment defaults
-  # config.vm.provision :shell, :path => "resources/shell_provisioners/init_training_el5.sh"
-
-  # Bootstrap the local repository for training environment (requires network access)
-  # config.vm.provision :shell, :path => "resources/shell_provisioners/seed_local_repos.sh"
-  
-  #
-  # CFEngine Provisioner Settings 
-  #     (applies to all vms)
-  #config.vm.provision :cfengine do |cfengine|
-  #  cfengine.yum_repo_url = "file:///vagrant/resources/yumrepos/cfengine"
-  #  cfengine.policy_server_address = "#{cfengine_policyserver_ip}"
-  #end
-
-  
   # Begin Hub Configuration
   #
 
@@ -68,26 +43,14 @@ Vagrant.configure("2") do |config|
     policyserver.vm.network :forwarded_port, guest: 80, host: policyserver_80_fwd
 
     config.vm.provider "virtualbox" do |v|
-        v.customize ["modifyvm", :id, "--memory", "1024"]
+        v.customize ["modifyvm", :id, "--memory", "1024", "--cpus", "2"]
     end
     # Use a synced folder so that we can edit from outside of the environment
     # A typical workflow has masterfiles pulled from version control
-    #policyserver.vm.synced_folder "resources/overlay_var_cfengine/masterfiles/", "/var/cfengine/masterfiles"
-    #policyserver.vm.provision :shell, :path => "resources/shell_provisioners/01_prime_local_cfengine_repo_el6.sh"
-    policyserver.vm.provision :shell, :path => "resources/shell_provisioners/02_configure_local_cfengine_enterprise_yum_sources_el6.sh"
-    policyserver.vm.provision :shell, :path => "resources/shell_provisioners/configure_local_package_cache_repo_el.sh"
-    policyserver.vm.provision :shell, :path => "resources/shell_provisioners/03_install_cfengine_enterprise_policyserver.sh"
-    policyserver.vm.provision :shell, :path => "resources/shell_provisioners/05_bootstrap_cfengine.sh", :args => "#{cfengine_policyserver_ip}"
-    policyserver.vm.provision :shell, :path => "resources/shell_provisioners/activate_config.sh"
-    policyserver.vm.provision :shell, :path => "resources/shell_provisioners/initalize_masterfiles_repo.sh"
-    #policyserver.vm.provision :shell, :path => "resources/shell_provisioners/04_install_cfengine_enterprise_expansion.sh"
-    #policyserver.vm.provision :shell, :path => "resources/shell_provisioners/06_nudge_mission_portal.sh"
-    #policyserver.vm.provision :shell, :path => "resources/shell_provisioners/07_install_lessons.sh"
-    #policyserver.vm.provision :shell, :path => "resources/shell_provisioners/create_and_install_sshkey.sh"
-    #policyserver.vm.provision :shell, :path => "resources/shell_provisioners/initalize_masterfiles_repo.sh"
-    # policyserver.vm.provision :shell, :path => "resources/shell_provisioners/install_git.sh"
-    # policyserver.vm.provision :shell, :path => "resources/shell_provisioners/setup_git_user_env.sh"
-    policyserver.vm.provision :shell, :path => "resources/shell_provisioners/08_instructions.sh", :args => "localhost #{policyserver_80_fwd}"
+    policyserver.vm.provision :shell, :path => "resources/provisioners/shell/03_install_cfengine_enterprise_policyserver.sh"
+    policyserver.vm.provision :shell, :path => "resources/provisioners/shell/05_bootstrap_cfengine.sh", :args => "#{cfengine_policyserver_ip}"
+    policyserver.vm.provision :shell, :path => "resources/provisioners/shell/activate_config.sh"
+    policyserver.vm.provision :shell, :path => "resources/provisioners/shell/08_instructions.sh", :args => "localhost #{policyserver_80_fwd}"
     
   end
 
@@ -110,14 +73,24 @@ Vagrant.configure("2") do |config|
     host_80_fwd = Integer("#{prefix_80_fwd}#{host_number+host_ip_offset}")
 
     config.vm.define host_name.to_sym do |host|
+
+      #if host_number.odd?
+      #    config.vm.box = "centos-6.4-x86_64"
+      #    host.vm.provision :shell, :path => "resources/shell_provisioners/configure_local_package_cache_repo_el.sh"
+      #    #
+      #else
+      #    config.vm.box_url = "https://s3.amazonaws.com/Vagrant_BaseBoxes/centos-6.4-x86_64-201306291207.box"
+      #    config.vm.box = "ubuntu-12.04-amd64"
+      #    #config.vm.box_url = "https://s3.amazonaws.com/Vagrant_BaseBoxes/ubuntu-12.04-amd64-201306291207.box"
+      #end
+
       host.vm.hostname = "#{host_name}"
       host.vm.network :private_network, ip: "#{host_ip}"
       host.vm.network :forwarded_port, guest: 80, host: host_80_fwd
-      host.vm.provision :shell, :path => "resources/shell_provisioners/02_configure_local_cfengine_enterprise_yum_sources_el6.sh"
-      host.vm.provision :shell, :path => "resources/shell_provisioners/configure_local_package_cache_repo_el.sh"
-      host.vm.provision :shell, :path => "resources/shell_provisioners/04_install_cfengine_enterprise_agent.sh"
-      host.vm.provision :shell, :path => "resources/shell_provisioners/05_bootstrap_cfengine.sh", :args => "#{cfengine_policyserver_ip}"
-      host.vm.provision :shell, :path => "resources/shell_provisioners/08_instructions.sh", :args => "localhost #{policyserver_80_fwd}"
+      host.vm.provision :shell, :path => "resources/provisioners/shell/init.sh", :args => "#{agent_package_name} #{package_version}"
+      host.vm.provision :shell, :path => "resources/provisioners/shell/05_bootstrap_cfengine.sh", :args => "#{cfengine_policyserver_ip}"
+      host.vm.provision :shell, :path => "resources/provisioners/shell/activate_config.sh"
+      host.vm.provision :shell, :path => "resources/provisioners/shell/08_instructions.sh", :args => "localhost #{policyserver_80_fwd}"
     end
   end
 

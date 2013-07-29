@@ -1,0 +1,11 @@
+base_masterfiles="/var/cfengine/share/NovaBase"
+masterfiles="/var/cfengine/masterfiles"
+overlay_masterfiles="/vagrant/resources/overlay_var_cfengine/masterfiles"
+tmp_masterfiles="/tmp/masterfiles"
+git_user=git
+
+ssh_key=/vagrant/policyserver.id_rsa
+SSH_USER=git
+masterfiles_git="/home/$git_user/masterfiles.git"
+SSH_DIR="$(grep $SSH_USER /etc/passwd | cut -d ":" -f6)/.ssh"
+AUTHORIZED_KEYS=$SSH_DIR/authorized_keys
