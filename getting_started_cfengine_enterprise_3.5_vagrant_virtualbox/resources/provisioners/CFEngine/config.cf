@@ -122,6 +122,35 @@ bundle agent configure_git_server
                                            "$(settings.masterfiles_tmp)",
                                            "$(settings.masterfiles_base)",
                                            "$(settings.masterfiles_overlay)");
+      "Mission Portal Git Config"
+        usebundle => mission_portal_git_config;
+
+}
+
+bundle agent mission_portal_git_config
+{
+  files:
+    "/opt/cfengine/userworkdir/."
+      perms => og("apache", "apache"),
+      depth_search => recurse("inf");
+
+    "/opt/cfengine/userworkdir/admin/.ssh/."
+      create => "true",
+      perms => mog("755", "apache", "apache"),
+      classes => classes_generic("admin_ssh_dir");
+
+     
+    "/opt/cfengine/userworkdir/admin/.ssh/id_rsa.pvt"
+      copy_from => local_cp("$(settings.mission_portal_priv_ssh_key)"),
+      perms => mog("600", "apache", "apache"),
+      classes => classes_generic("admin_ssh_pvt_key");
+
+  commands:
+    admin_ssh_pvt_key_repaired::
+      "/var/cfengine/bin/mongo"
+        args => 'phpcfengine --eval \'db.usersettings.insert({ "username" : "admin", "gitServer" : "git@localhost:masterfiles.git", "gitEmail" : "root@localhost.localdomain", "gitAuthor" : "Mission Portal", "gitBranch" : "master" })\'';
+      
+
 
 }
 
