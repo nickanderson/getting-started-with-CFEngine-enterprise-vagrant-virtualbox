@@ -122,8 +122,10 @@ bundle agent configure_git_server
                                            "$(settings.masterfiles_tmp)",
                                            "$(settings.masterfiles_base)",
                                            "$(settings.masterfiles_overlay)");
+
       "Mission Portal Git Config"
-        usebundle => mission_portal_git_config;
+        usebundle => mission_portal_git_config,
+        comment => "Ensure that Design Center GUI works out of the box with the local git server";
 
 }
 

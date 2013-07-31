@@ -13,8 +13,9 @@ Vagrant.configure("2") do |config|
   # Every Vagrant virtual environment requires a box to build off of.
   # Policy Server BaseBox
   config.vm.box = "centos-6.4-x86_64-201307252018"
-  config.vm.box_url = "https://s3.amazonaws.com/Vagrant_BaseBoxes/#{config.vm.box}.box"
+  config.vm.box_url = "http://cfengine.com/tl_files/cfengine/share/vagrant_baseboxes/#{config.vm.box}.box"
 
+  
   # 
   # Dynamic Node Configuration
   # 
